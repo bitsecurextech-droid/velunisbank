@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──────────────────────────────
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  BUSINESS
+  JOINT
+  MULTI_CURRENCY
+}
+
+enum CardType {
+  VIRTUAL
+  PHYSICAL_DEBIT
+  WORLD_ELITE
+  PREMIUM_GOLD
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum DepositStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum KYCStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CurrencyCode {
+  USD
+  GBP
+  EUR
+  CAD
+  AUD
+}
+
+enum NotificationType {
+  TRANSACTION
+  SECURITY
+  PROMO
+  DEPOSIT
+  CARD
+}
+
+// ── Models ──────────────────────────────
+model User {
+  id                   String       @id @default(uuid())
+  email                String       @unique
+  passwordHash         String
+  firstName            String
+  lastName             String
+  middleName           String?
+  dateOfBirth          DateTime?
+  phone                String?
+  mobileNumber         String?
+  country              String
+  currency             CurrencyCode @default(USD)
+  role                 UserRole     @default(USER)
+  isActive             Boolean      @default(true)
+  isBanned             Boolean      @default(false)
+  isVerified           Boolean      @default(false)
+  kycStatus            KYCStatus    @default(NOT_SUBMITTED)
+  transferLocked       Boolean      @default(false)
+  depositLocked        Boolean      @default(false)
+  lockReason           String?
+  twoFactorEnabled     Boolean      @default(false)
+  twoFactorSecret      String?
+  lastLogin            DateTime?
+  lastLoginIp          String?                          // 👈 added for IP tracking
+  pinHash              String?                          // 👈 added for transaction PIN (replaces isPinSet)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  // Additional fields from the update request
+  employmentStatus     String?
+  annualIncome         Float?
+  sourceOfFunds        String?
+  addressLine1         String?
+  addressLine2         String?
+  city                 String?
+  state                String?
+  postalCode           String?
+  accountTypeRequested AccountType?
+
+  // Relations
+  accounts          Account[]
+  cards             Card[]
+  transactions      Transaction[]
+  beneficiaries     Beneficiary[]
+  loans             Loan[]
+  investments       Investment[]
+  supportTickets    SupportTicket[]
+  notifications     Notification[]
+  sessions          Session[]
+  devices           TrustedDevice[]
+  auditLogs         AuditLog[]
+  deposits          Deposit[]
+  kyc               KYC?
+}
+
+model Account {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  accountType     AccountType
+  accountNumber   String        @unique
+  iban            String?
+  swift           String?
+  routingNumber   String?
+  balance         Float         @default(0)
+  currency        CurrencyCode
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  transactions    Transaction[]
+}
+
+model Card {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  cardNumber      String        @unique
+  expiryDate      String
+  cvv             String
+  cardType        CardType
+  balance         Float         @default(0)
+  isActive        Boolean       @default(true)
+  isFrozen        Boolean       @default(false)
+  dailyLimit      Float         @default(10000)
+  monthlyLimit    Float         @default(50000)
+  createdAt       DateTime      @default(now())
+
+  transactions    CardTransaction[]
+}
+
+model CardTransaction {
+  id          String            @id @default(uuid())
+  cardId      String
+  card        Card              @relation(fields: [cardId], references: [id])
+  amount      Float
+  merchant    String
+  status      TransactionStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+}
+
+model Deposit {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  method      String        // STEAM, APPLE, GIFT_CARD, PAYPAL, CRYPTO
+  amount      Float
+  currency    CurrencyCode
+  status      DepositStatus @default(PENDING)
+  imageUrl    String?       // for gift cards
+  code        String?       // gift card code
+  paypalTxnId String?       // PayPal transaction ID
+  cryptoTxnHash String?     // blockchain hash
+  cryptoType  String?       // BTC, ETH, USDT
+  adminNote   String?
+  createdAt   DateTime      @default(now())
+  reviewedAt  DateTime?
+}
+
+model Transaction {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  accountId       String
+  account         Account           @relation(fields: [accountId], references: [id])
+  type            String            // CREDIT, DEBIT, TRANSFER_OUT, TRANSFER_IN
+  amount          Float
+  currency        CurrencyCode
+  description     String
+  status          TransactionStatus @default(PENDING)
+  category        String?           // Shopping, Bills, Transfer, etc.
+  reference       String?
+  recipientName   String?
+  recipientAccount String?
+  isFlagged       Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+}
+
+model Beneficiary {
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  name          String
+  accountNumber String
+  bankName      String?
+  swift         String?
+  country       String?
+  currency      CurrencyCode
+}
+
+model Loan {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  amount          Float
+  interestRate    Float
+  termMonths      Int
+  remainingAmount Float
+  status          String   // ACTIVE, PAID, DEFAULTED
+  createdAt       DateTime @default(now())
+  repayments      LoanRepayment[]
+}
+
+model LoanRepayment {
+  id       String   @id @default(uuid())
+  loanId   String
+  loan     Loan     @relation(fields: [loanId], references: [id])
+  amount   Float
+  dueDate  DateTime
+  paidDate DateTime?
+  status   String   // PAID, PENDING, OVERDUE
+}
+
+model Investment {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  type         String   // STOCK, ETF, FUND
+  symbol       String
+  name         String
+  quantity     Float
+  avgPrice     Float
+  currentPrice Float?
+  totalValue   Float?
+  lastUpdated  DateTime @updatedAt
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  subject     String
+  message     String
+  status      String   @default("OPEN")
+  priority    String   @default("NORMAL")
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  title     String
+  body      String
+  type      NotificationType
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model TrustedDevice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceInfo  String
+  ipAddress   String?
+  trusted     Boolean  @default(false)
+  lastUsedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  ip        String?
+  timestamp DateTime @default(now())
+}
+
+model KYC {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id])
+  documentType String
+  documentUrl  String
+  status       KYCStatus @default(PENDING)
+  adminNotes   String?
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+}
+
+model PaymentConfig {
+  id            String  @id @default("main")
+  paypalEnabled Boolean @default(false)
+  paypalEmail   String?
+  cryptoBtc     String?
+  cryptoEth     String?
+  cryptoUsdt    String?
+  steamEnabled  Boolean @default(true)
+  appleEnabled  Boolean @default(true)
+  giftCardEnabled Boolean @default(true)
+}
