@@ -89,12 +89,16 @@ model User {
   twoFactorEnabled     Boolean      @default(false)
   twoFactorSecret      String?
   lastLogin            DateTime?
-  lastLoginIp          String?                          // 👈 added for IP tracking
-  pinHash              String?                          // 👈 added for transaction PIN (replaces isPinSet)
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  lastLoginIp          String?
 
-  // Additional fields from the update request
+  transactionPinHash   String?      // <-- REQUIRED by pin/withdrawal controllers
+  isPinSet             Boolean      @default(false) // <-- REQUIRED by dashboard layout
+
+  avatarUrl            String?      // <-- REQUIRED by user controller uploadAvatar
+  managerId            String?      // <-- for account manager
+  manager              User?        @relation("ManagedUsers", fields: [managerId], references: [id])
+
+  // Onboarding fields
   employmentStatus     String?
   annualIncome         Float?
   sourceOfFunds        String?
@@ -105,20 +109,29 @@ model User {
   postalCode           String?
   accountTypeRequested AccountType?
 
+  // Limits
+  dailyTransferLimit   Float?
+  dailyWithdrawalLimit Float?
+
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
   // Relations
-  accounts          Account[]
-  cards             Card[]
-  transactions      Transaction[]
-  beneficiaries     Beneficiary[]
-  loans             Loan[]
-  investments       Investment[]
-  supportTickets    SupportTicket[]
-  notifications     Notification[]
-  sessions          Session[]
-  devices           TrustedDevice[]
-  auditLogs         AuditLog[]
-  deposits          Deposit[]
-  kyc               KYC?
+  accounts             Account[]
+  cards                Card[]
+  transactions         Transaction[]
+  beneficiaries        Beneficiary[]
+  loans                Loan[]
+  investments          Investment[]
+  supportTickets       SupportTicket[]
+  notifications        Notification[]
+  sessions             Session[]
+  devices              TrustedDevice[]
+  auditLogs            AuditLog[]
+  deposits             Deposit[]
+  withdrawals          Withdrawal[]   // <-- REQUIRED by withdrawal/prisma.withdrawal
+  kyc                  KYC?
+  managedUsers         User[]         @relation("ManagedUsers")
 }
 
 model Account {
@@ -168,40 +181,40 @@ model CardTransaction {
 }
 
 model Deposit {
-  id          String        @id @default(uuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id])
-  method      String        // STEAM, APPLE, GIFT_CARD, PAYPAL, CRYPTO
-  amount      Float
-  currency    CurrencyCode
-  status      DepositStatus @default(PENDING)
-  imageUrl    String?       // for gift cards
-  code        String?       // gift card code
-  paypalTxnId String?       // PayPal transaction ID
-  cryptoTxnHash String?     // blockchain hash
-  cryptoType  String?       // BTC, ETH, USDT
-  adminNote   String?
-  createdAt   DateTime      @default(now())
-  reviewedAt  DateTime?
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  method        String
+  amount        Float
+  currency      CurrencyCode
+  status        DepositStatus @default(PENDING)
+  imageUrl      String?
+  code          String?
+  paypalTxnId   String?
+  cryptoTxnHash String?
+  cryptoType    String?
+  adminNote     String?
+  createdAt     DateTime      @default(now())
+  reviewedAt    DateTime?
 }
 
 model Transaction {
-  id              String            @id @default(uuid())
-  userId          String
-  user            User              @relation(fields: [userId], references: [id])
-  accountId       String
-  account         Account           @relation(fields: [accountId], references: [id])
-  type            String            // CREDIT, DEBIT, TRANSFER_OUT, TRANSFER_IN
-  amount          Float
-  currency        CurrencyCode
-  description     String
-  status          TransactionStatus @default(PENDING)
-  category        String?           // Shopping, Bills, Transfer, etc.
-  reference       String?
-  recipientName   String?
+  id               String            @id @default(uuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id])
+  accountId        String
+  account          Account           @relation(fields: [accountId], references: [id])
+  type             String
+  amount           Float
+  currency         CurrencyCode
+  description      String
+  status           TransactionStatus @default(PENDING)
+  category         String?
+  reference        String?
+  recipientName    String?
   recipientAccount String?
-  isFlagged       Boolean           @default(false)
-  createdAt       DateTime          @default(now())
+  isFlagged        Boolean           @default(false)
+  createdAt        DateTime          @default(now())
 }
 
 model Beneficiary {
@@ -224,7 +237,7 @@ model Loan {
   interestRate    Float
   termMonths      Int
   remainingAmount Float
-  status          String   // ACTIVE, PAID, DEFAULTED
+  status          String   @default("ACTIVE")
   createdAt       DateTime @default(now())
   repayments      LoanRepayment[]
 }
@@ -236,14 +249,14 @@ model LoanRepayment {
   amount   Float
   dueDate  DateTime
   paidDate DateTime?
-  status   String   // PAID, PENDING, OVERDUE
+  status   String   @default("PENDING")
 }
 
 model Investment {
   id           String   @id @default(uuid())
   userId       String
   user         User     @relation(fields: [userId], references: [id])
-  type         String   // STOCK, ETF, FUND
+  type         String
   symbol       String
   name         String
   quantity     Float
@@ -320,13 +333,32 @@ model KYC {
 }
 
 model PaymentConfig {
-  id            String  @id @default("main")
-  paypalEnabled Boolean @default(false)
-  paypalEmail   String?
-  cryptoBtc     String?
-  cryptoEth     String?
-  cryptoUsdt    String?
-  steamEnabled  Boolean @default(true)
-  appleEnabled  Boolean @default(true)
-  giftCardEnabled Boolean @default(true)
+  id               String  @id @default("main")
+  paypalEnabled    Boolean @default(false)
+  paypalEmail      String?
+  cryptoBtc        String?
+  cryptoEth        String?
+  cryptoUsdt       String?
+  steamEnabled     Boolean @default(true)
+  appleEnabled     Boolean @default(true)
+  giftCardEnabled  Boolean @default(true)
+  achAccountNumber String?
+  wireRoutingNumber String?
+  directDepositInfo String?
+}
+
+model Withdrawal {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  amount         Float
+  currency       CurrencyCode
+  status         String       @default("PENDING")
+  recipientName  String
+  accountNumber  String?
+  routingNumber  String?
+  bankName       String?
+  adminNote      String?
+  createdAt      DateTime     @default(now())
+  approvedAt     DateTime?
 }
