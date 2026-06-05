@@ -1,0 +1,12 @@
+/* Velunis Bank – Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f4f6fb;
+  color: #0a2540;
+}

@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --color-navy: #081426;
+  --color-gold: #D4AF37;
+  --color-silver: #C7CDD6;
+  --color-white: #F8F8F6;
+  --color-black: #05070A;
+}
+
+body {
+  background-color: var(--color-navy);
+  color: var(--color-white);
+  font-family: 'Inter', sans-serif;
+}
+
+.font-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+.glass {
+  background: rgba(8, 20, 38, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass:hover {
+  box-shadow: 0 0 30px rgba(212, 175, 55, 0.3),
+              0 20px 40px rgba(0, 0, 0, 0.6);
+  border-color: rgba(212, 175, 55, 0.3);
+}
