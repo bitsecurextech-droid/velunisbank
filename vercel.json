@@ -1,18 +1,12 @@
 {
-  "services": [
-    {
-      "name": "frontend",
-      "root": "frontend",
-      "framework": "nextjs",
-      "routes": [{ "src": "/.*", "dest": "/" }]
+  "projects": {
+    "frontend": {
+      "rootDirectory": "frontend",
+      "framework": "nextjs"
     },
-    {
-      "name": "backend",
-      "root": "backend",
-      "type": "web",
-      "buildCommand": "npm install && npx prisma generate && npm run build",
-      "startCommand": "npm start",
-      "routes": [{ "src": "/api/(.*)", "dest": "/api/$1" }]
+    "backend": {
+      "rootDirectory": "backend",
+      "framework": null
     }
-  ]
+  }
 }
