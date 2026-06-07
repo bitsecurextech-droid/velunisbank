@@ -3,8 +3,12 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AppError } from './errorHandler';
 
+// Simple JWT payload – avoids Prisma type conflict
 export interface AuthRequest extends Request {
-  user?: { id: string; role: string };
+  user?: {
+    id: string;
+    role: string;
+  };
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
